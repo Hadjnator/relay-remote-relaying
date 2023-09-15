@@ -1,0 +1,16 @@
+  Flow 1 (1.0.0.2 -> 7.0.0.3) UDP
+    Tx Packets: 497
+    Tx Bytes:   63616
+    TxOffered:  0.050893 Mbps
+    Rx Packets: 474
+    Rx Bytes:   60672
+    Throughput: 0.048538 Mbps
+    Mean delay:  11.588185 ms
+  Flow 2 (7.0.0.3 -> 1.0.0.2) UDP
+    Tx Packets: 496
+    Tx Bytes:   63488
+    TxOffered:  0.050790 Mbps
+    Rx Packets: 495
+    Rx Bytes:   63360
+    Throughput: 0.050688 Mbps
+    Mean delay:  11.522204 ms
