@@ -25,7 +25,33 @@
 
 
 using namespace ns3;
+//STATS Remote UE
+struct DistantStats {
+  double time;
+  Ipv4Address nodeIp;
+  Ipv4Address srcIp;
+  Ipv4Address dstIp;
+  std::string srcLink;
+  std::string dstLink;
+};
+NodeContainer distantUeNode;
+InternetStackHelper internet;
 
+std::list <DistantStats> distantStatsList;
+
+void TraceRxPacketsDistant(Ptr<const Packet> packet, Ipv4Address srcIp, Ipv4Address dstIp) {
+
+  DistantStats stats;
+  stats.time = Simulator::Now().GetSeconds();
+  stats.nodeIp = distantUeNode.Get(0)->GetObject<Ipv4L3Protocol>()->GetAddress(1,0).GetLocal();
+  stats.srcIp = srcIp;
+  stats.dstIp = dstIp;
+  stats.srcLink = "SL";
+  stats.dstLink = "Tun";
+
+  distantStatsList.push_back(stats);
+
+}
 
 NS_LOG_COMPONENT_DEFINE ("NrProseL3Relay");
 
@@ -99,7 +125,24 @@ TraceSinkRelayNasRxPacketTrace (Ptr<OutputStreamWrapper> stream,
     }
 }
 /*******************************************************************************************************************/
+//Remote NAS RX packet function
+void
+TraceSinkRemoteNasRxPacketTrace (Ptr<OutputStreamWrapper> stream,
+                                Ipv4Address nodeIp, Ipv4Address srcIp, Ipv4Address dstIp,
+                                std::string srcLink, std::string dstLink, Ptr<Packet> p)
 
+{ 
+  *stream->GetStream () << Simulator::Now ().GetSeconds ()
+                        << "\t" << nodeIp
+                        << "\t" << srcIp
+                        << "\t" << dstIp
+                        << "\t" << srcLink
+                        << "\t" << dstLink
+                        << std::endl;
+  std::ostringstream  oss;
+  oss << nodeIp << "      " << srcIp << "->" << dstIp << "      " << srcLink ;
+}
+/***********************************************/
 //TraceCallback function to capture packets sent
 void SentPacketTrace(Ptr<const Packet> pkt, const Address& addr)
 {
@@ -716,6 +759,22 @@ int main(int argc, char *argv[])
                                          MakeBoundCallback (&TraceSinkPC5SignallingPacketTrace,
                                                             Pc5SignallingPacketTraceStream));
   /******************* END PC5-S messages tracing ****************************/
+
+  
+  /************************** Remote NAS forwarding packet reception*********************/
+  std::string fichierRemote = "NrSlRemoteNasRxPacketTrace.txt";
+  Ptr<OutputStreamWrapper> RemoteNasRxPacketTraceStream = ascii.CreateFileStream (fichierRemote.c_str ());
+  *RemoteNasRxPacketTraceStream->GetStream () << "time(s)\tnodeIp\tsrcIp\tdstIp\tsrcLink\tdstLink" << std::endl;
+  for (uint32_t i = 0; i < remoteUeNetDev.GetN (); ++i)
+    {
+      std::cout <<" allo police ! " << std::endl;
+      Ptr<EpcUeNas> myepcUeNas = remoteUeNetDev.Get (i)->GetObject<NrUeNetDevice> ()->GetNas ();
+
+      myepcUeNas->TraceConnectWithoutContext ("NrSlRelayRxPacketTrace",
+                                            MakeBoundCallback (&TraceSinkRelayNasRxPacketTrace,
+                                                               RemoteNasRxPacketTraceStream));
+    }
+   /********************************* END Remote NAS Forwarding*********************/
 
   /******************** NAS forwarding tracing *******************************/
   std::string nasRx_filename = exampleName  + "-NrSlRelayNasRxPacketTrace.txt";
