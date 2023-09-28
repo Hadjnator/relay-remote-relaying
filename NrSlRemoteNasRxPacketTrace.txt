@@ -1,1 +1,0 @@
-time(s)	nodeIp	srcIp	dstIp	srcLink	dstLink

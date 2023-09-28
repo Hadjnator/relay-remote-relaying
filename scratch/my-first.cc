@@ -98,62 +98,40 @@ TraceSinkRelayNasRxPacketTrace (Ptr<OutputStreamWrapper> stream,
     }
 }
 /*******************************************************************************************************************/
-//Remote NAS RX packet function
-void
-TraceSinkRemoteNasRxPacketTrace (Ptr<OutputStreamWrapper> stream,
-                                Ipv4Address nodeIp, Ipv4Address srcIp, Ipv4Address dstIp,
-                                std::string srcLink, std::string dstLink, Ptr<Packet> p)
-
-{ 
-  *stream->GetStream () << Simulator::Now ().GetSeconds ()
-                        << "\t" << nodeIp
-                        << "\t" << srcIp
-                        << "\t" << dstIp
-                        << "\t" << srcLink
-                        << "\t" << dstLink
-                        << std::endl;
-  std::ostringstream  oss;
-  oss << nodeIp << "      " << srcIp << "->" << dstIp << "      " << srcLink ;
-}
-/***********************************************/
 //PrintRxacket at Remote UE
 static void
-PrintRxPkt ([[maybe_unused]] std::string context, Ptr<const Packet> pkt, const Address &src)
+PrintRxPkt ([[maybe_unused]] std::string context, Ptr<const Packet> pkt, const Address& src)
 {
   SeqTsHeader seqTs;
   pkt->PeekHeader (seqTs);
   Time txTime = seqTs.GetTs();
   Time rxTime = Simulator::Now();
   //Latency computation
-  Time latency = rxTime - txTime;
-  
-  //Extract IPV4 Header
-  Ipv4Header ipv4header;
-  pkt->PeekHeader(ipv4header);
-  Ipv4Address srcIp = ipv4header.GetSource();
-  // Convertir l'adresse IPv4 en une séquence d'octets
-  uint8_t ipBytes[4];
-  srcIp.Serialize(ipBytes);
+  Time latency = (rxTime - txTime)*1000;//convert in ms
 
-  // Afficher l'adresse IP sous forme de 4 octets
-  std::cout << "Adresse source : " << int(ipBytes[0]) << "." << int(ipBytes[1]) << "." << int(ipBytes[2]) << "." << int(ipBytes[3]) << std::endl;
-
+  //IPV4 header
+  //Ipv4Header ipv4Header;
+  //pkt->PeekHeader(ipv4Header);
+  //Ipv4Address srcIp = ipv4Header.GetSource();
   //std::cout << "Adresse source : "<< srcIp << std::endl;
-
+   
   //Text file to store values
   std::ofstream outputFile("fichierTxRxTemps.txt", std::ios::app);
+  std::ofstream latencyFile("fichierLatence.txt", std::ios::app);
 
-  if (outputFile.is_open())
+  if (outputFile.is_open() && latencyFile.is_open())
     { 
-      if (outputFile.tellp() == 0) 
+      if (outputFile.tellp() == 0 && latencyFile.tellp()==0) 
       {
-         outputFile << "Tx Time(s)\tRx Time(s)\tLatency(s)\tSource Address" << std::endl;
+         outputFile << "Tx Time(s)\tRx Time(s)\tLatency(ms)\tSource Address" << std::endl;
+         latencyFile << "Tx Time(s)\tRx Time(s)\tLatency(ms)"<< std::endl;
       }
       // store data in the file
       outputFile << txTime.GetSeconds() << "\t" << rxTime.GetSeconds() << "\t" << latency.GetSeconds() << "\t" << src << std::endl;
-
+      latencyFile << txTime.GetSeconds() << "\t" << rxTime.GetSeconds() << "\t" << latency.GetSeconds() << std::endl;
       //Close the file
       outputFile.close();
+      latencyFile.close();
     }
   else
   {
@@ -193,11 +171,11 @@ int main(int argc, char *argv[])
   uint16_t numerologyCc0Bwp0 = 3; // BWP0 will be used for the in-network (gNB-Relay UE)
   uint16_t relayUeNum = 1;
   double UeHeight = 1.5;
-  double UeYrelay = 1.5;
+  double UeYrelay = 500;
 
   //Remote UE
   uint16_t remoteUeNum = 1;
-  double UeXremote = 1.5;
+  double UeYremote = 950;
 
   //Sidelink configuration
   uint16_t numerologyCc0Bwp1 = 2; // BWP1 will be used for SL
@@ -236,7 +214,7 @@ int main(int argc, char *argv[])
   NodeContainer relayUeNode;
   relayUeNode.Create (relayUeNum);
   Ptr<ListPositionAllocator> relayUePositionAlloc = CreateObject<ListPositionAllocator> ();
-  relayUePositionAlloc->Add (Vector (1.0, UeYrelay, UeHeight));
+  relayUePositionAlloc->Add (Vector (0.0, UeYrelay, UeHeight));
   mobility.SetPositionAllocator (relayUePositionAlloc);
   mobility.Install (relayUeNode);
 
@@ -244,7 +222,7 @@ int main(int argc, char *argv[])
   NodeContainer remoteUeNode;
   remoteUeNode.Create (remoteUeNum);
   Ptr<ListPositionAllocator> remoteUePositionAlloc = CreateObject<ListPositionAllocator> ();
-  remoteUePositionAlloc->Add (Vector (UeXremote, 0.0, UeHeight));
+  remoteUePositionAlloc->Add (Vector (0.0, UeYremote, UeHeight));
   mobility.SetPositionAllocator (remoteUePositionAlloc);
   mobility.Install (remoteUeNode);
 
@@ -290,6 +268,8 @@ int main(int argc, char *argv[])
   bwp0->m_channelBandwidth = bandwidthCc0Bpw0;
   bwp0->m_lowerFrequency = bwp0->m_centralFrequency - bwp0->m_channelBandwidth / 2;
   bwp0->m_higherFrequency = bwp0->m_centralFrequency + bwp0->m_channelBandwidth / 2;
+  // Set the scenario for BWP 0 to InH_OfficeOpen_LoS
+  bwp0->m_scenario = BandwidthPartInfo::InH_OfficeOpen_nLoS;
 
   cc0->AddBwp (std::move (bwp0));
 
@@ -299,10 +279,12 @@ int main(int argc, char *argv[])
   bwp1->m_channelBandwidth = bandwidthCc0Bpw1;
   bwp1->m_lowerFrequency = bwp1->m_centralFrequency - bwp1->m_channelBandwidth / 2;
   bwp1->m_higherFrequency = bwp1->m_centralFrequency + bwp1->m_channelBandwidth / 2;
+  // Set the scenario for BWP 1 to InH_OfficeOpen_LoS
+  bwp1->m_scenario = BandwidthPartInfo::InH_OfficeOpen_LoS;
 
   cc0->AddBwp (std::move (bwp1));
 
-  // Add CC to the corresponding operation band.
+  //Add CC to the corresponding operation band.
   band.AddCc (std::move (cc0));
 
   /********************* END of Spectrum division ****************************/
@@ -533,7 +515,7 @@ int main(int argc, char *argv[])
   InternetStackHelper internet;
   internet.Install (remoteHostContainer);
 
-  // connect a remoteHost to pgw. Setup routing too
+  //connect a remoteHost to pgw. Setup routing too
   PointToPointHelper p2ph;
   p2ph.SetDeviceAttribute ("DataRate", DataRateValue (DataRate ("100Gb/s")));
   p2ph.SetDeviceAttribute ("Mtu", UintegerValue (2500));
@@ -653,7 +635,7 @@ int main(int argc, char *argv[])
   startTimeRnd->SetAttribute ("Max", DoubleValue (0.1)); //seconds
   
   Time appStartTime;
-  double cleanup_time = 0.2; //in seconds
+  double cleanup_time = 0.5; //in seconds (1.5 pour 100 ms)
 
   // REMOTE UEs TRAFFIC
   for (uint32_t u = 0; u < remoteUeNode.GetN (); ++u)
@@ -767,7 +749,7 @@ int main(int argc, char *argv[])
   monitor->SetAttribute ("PacketSizeBinWidth", DoubleValue (20));
 
   //Run simulation
-  Simulator::Stop (Seconds (simTime)); // on ajoute un delai 
+  Simulator::Stop (Seconds (simTime+cleanup_time)); // on ajoute un delai pour recevoir les derniers paquets
   Simulator::Run ();
 
   //Netanim file
